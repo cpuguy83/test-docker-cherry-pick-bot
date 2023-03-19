@@ -8,6 +8,8 @@ import (
 )
 
 // ConfigFromGRPC converts a grpc Config to a Config.
+//
+// Adding some random junk
 func ConfigFromGRPC(s *swarmapi.Config) swarmtypes.Config {
 	config := swarmtypes.Config{
 		ID: s.ID,

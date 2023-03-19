@@ -1,0 +1,49 @@
+name: Backport
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - master
+
+jobs:
+  backport:
+    if: ${{ github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'process/cherry-pick/23.0') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: cherry-pick
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          labels="$(gh pr view --json labels ${{ github.event.pull_request.number }} | jq -r '.labels[].name' | grep cherry-pick/)"
+
+          commits="$(gh pr view --json commits ${{ github.event.pull_request.number }} | jq -r '.commits[].oid' 2>&1)"
+          if [ $? -eq 0 ] || [ -z "${commits}" ]; then
+            echo "No commits found for PR #${{ github.event.pull_request.number }}"
+            echo "::error::Error getting commits for PR #${{ github.event.pull_request.number }} to backport"
+            exit 1
+          fi
+
+          backport() {
+            set -e
+            branch="${1}"
+            git fetch origin $branch:$branch
+            git checkout $branch
+            git cherry-pick -x -s ${commits}
+            gh pr create \
+              --title "[${branch}] Backport PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}" \
+              --body "Backport PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.body }}"
+          }
+
+          for label in $labels; do
+            branch="${label#process/cherry-pick/}"
+            out="$(backport $branch 2>&1)"
+            if [ $? -ne 0 ]; then
+              git cherry-pick --abort >/dev/null 2>&1; git reset --hard; git clen -fdx >/dev/null 2>&1
+
+              echo "::error::Error cherry-picking PR #${{ github.event.pull_request.number }} to $branch: "${out}"
+              git cherry-pick --abort; git reset --hard; git clen -fdx
+              continue
+            fi
+          done

@@ -11,6 +11,7 @@ import (
 	swarmapi "github.com/moby/swarmkit/v2/api"
 )
 
+// more random junk
 func networkAttachmentFromGRPC(na *swarmapi.NetworkAttachment) types.NetworkAttachment {
 	if na != nil {
 		return types.NetworkAttachment{
